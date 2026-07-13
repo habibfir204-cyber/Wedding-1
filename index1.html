@@ -1,0 +1,316 @@
+Tentu, ini adalah pembaruan kode yang Anda butuhkan. Saya telah menambahkan fitur-fitur yang Anda minta dan merapikan tampilannya agar lebih interaktif.
+
+Berikut adalah ringkasan penambahan yang dilakukan:
+
+* **Tombol Pembalik Kamera (Flip Camera):** Menambahkan opsi untuk beralih antara kamera depan dan kamera belakang.
+* **Sistem Pratinjau (Preview) & Pilihan Simpan:** Setelah tombol jepret ditekan, hasil foto tidak akan langsung terunduh. Akan muncul layar pratinjau dengan pilihan **"Simpan Foto"** atau **"Ulangi"** (Batal).
+* **Kamera Full Screen:** Baik video maupun template sekarang menggunakan `object-fit: cover` agar memenuhi layar secara proporsional sesuai rasio 9:16 (1080x1920).
+* **Layering (Posisi Kamera di Atas Template):** Sesuai permintaan Anda, posisi video dan foto (di dalam *canvas*) sekarang berada di **atas** template transparan.
+> **Catatan:** Dalam desain *photobooth* pada umumnya, template PNG yang memiliki lubang transparan (sebagai bingkai/frame) diletakkan di **atas** kamera. Jika kamera diletakkan di atas template yang ukurannya sama-sama *full screen*, kamera akan menutupi template tersebut sepenuhnya. Jika yang Anda maksud adalah template sebagai bingkai (berada di atas foto), Anda cukup mengubah urutan pada `z-index` di CSS dan urutan `ctx.drawImage` di JavaScript. (Saya sudah menyertakan instruksi di dalam komentar kode agar Anda mudah mengubahnya jika diperlukan).
+
+
+
+### Kode HTML, CSS, dan JavaScript (Lengkap)
+
+Silakan salin dan timpa kode lama Anda dengan kode di bawah ini:
+
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DIY Web Photo Booth</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+        
+        /* Kontainer Utama */
+        #booth-container, #preview-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Sembunyikan layar preview di awal */
+        #preview-container {
+            display: none;
+            background-color: #000;
+            z-index: 10;
+            flex-direction: column;
+        }
+
+        /* --- PENGATURAN LAYER KAMERA & TEMPLATE --- */
+        
+        /* Template Background */
+        #template-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Memenuhi layar */
+            pointer-events: none;
+            /* UBAH z-index MENJADI 2 JIKA INGIN TEMPLATE BERFUNGSI SEBAGAI BINGKAI DI ATAS KAMERA */
+            z-index: 1; 
+        }
+
+        /* Video Live Kamera */
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Memenuhi layar */
+            /* UBAH z-index MENJADI 1 JIKA INGIN KAMERA BERADA DI BAWAH BINGKAI TEMPLATE */
+            z-index: 2; 
+        }
+
+        /* --- TOMBOL UI --- */
+        
+        /* Tombol Jepret Foto */
+        #capture-btn {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75px;
+            height: 75px;
+            background-color: #ffffff;
+            border: 5px solid rgba(0,0,0,0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 5;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        #capture-btn:active {
+            background-color: #dddddd;
+            transform: translateX(-50%) scale(0.95);
+        }
+
+        /* Tombol Ganti Kamera (Flip) */
+        #flip-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            border: 1px solid white;
+            border-radius: 20px;
+            cursor: pointer;
+            z-index: 5;
+            font-size: 14px;
+        }
+
+        /* Hasil Foto Preview */
+        #preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 11;
+        }
+
+        /* Grup Tombol Aksi di Layar Preview */
+        .action-buttons {
+            position: absolute;
+            bottom: 40px;
+            z-index: 12;
+            display: flex;
+            gap: 20px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .btn-save {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .btn-retake {
+            background-color: #f44336;
+            color: white;
+        }
+
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="booth-container">
+        <img id="template-overlay" src="template.png" alt="Template Frame">
+        <video id="webcam" autoplay playsinline></video>
+        
+        <button id="flip-btn" onclick="toggleCamera()">🔄 Balik Kamera</button>
+        <button id="capture-btn" onclick="takeSnapshot()"></button>
+    </div>
+
+    <div id="preview-container">
+        <img id="preview-image" src="" alt="Hasil Foto">
+        <div class="action-buttons">
+            <button class="btn btn-retake" onclick="retakePhoto()">✖ Ulangi</button>
+            <button class="btn btn-save" onclick="savePhoto()">✔ Simpan Foto</button>
+        </div>
+    </div>
+
+    <canvas id="output-canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('output-canvas');
+        const templateImg = document.getElementById('template-overlay');
+        const boothContainer = document.getElementById('booth-container');
+        const previewContainer = document.getElementById('preview-container');
+        const previewImage = document.getElementById('preview-image');
+
+        let currentStream = null;
+        let useFrontCamera = true; // Default kamera depan
+        let finalImageDataUrl = ""; // Menyimpan foto sementara
+
+        // 1. Inisialisasi Kamera
+        function startCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: useFrontCamera ? "user" : "environment",
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 }
+                },
+                audio: false
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
+            .then(function(stream) {
+                currentStream = stream;
+                video.srcObject = stream;
+            })
+            .catch(function(err) {
+                alert("Gagal mengakses kamera. Pastikan izin kamera aktif.");
+                console.log("Error: " + err);
+            });
+        }
+
+        // Mulai kamera saat pertama kali dimuat
+        startCamera();
+
+        // 2. Fungsi Mengganti Kamera (Depan/Belakang)
+        function toggleCamera() {
+            useFrontCamera = !useFrontCamera;
+            startCamera();
+        }
+
+        // 3. Fungsi Jepret & Masuk ke Preview
+        function takeSnapshot() {
+            const ctx = canvas.getContext('2d');
+            
+            // Set resolusi standar portrait 9:16
+            canvas.width = 1080;
+            canvas.height = 1920;
+
+            let videoWidth = video.videoWidth;
+            let videoHeight = video.videoHeight;
+            let videoAspect = videoWidth / videoHeight;
+            let canvasAspect = canvas.width / canvas.height;
+            
+            let drawWidth, drawHeight, drawX, drawY;
+            
+            if (videoAspect > canvasAspect) {
+                drawHeight = canvas.height;
+                drawWidth = canvas.height * videoAspect;
+                drawX = (canvas.width - drawWidth) / 2;
+                drawY = 0;
+            } else {
+                drawWidth = canvas.width;
+                drawHeight = canvas.width / videoAspect;
+                drawX = 0;
+                drawY = (canvas.height - drawHeight) / 2;
+            }
+
+            // Jika kamera depan, balik gambar (mirror) agar tidak terbalik seperti cermin
+            ctx.save();
+            if (useFrontCamera) {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+
+            // --- URUTAN MENGGAMBAR DI CANVAS (PENTING) ---
+            // Sesuai instruksi Anda: Kamera berada di ATAS template
+            
+            // Step A: Gambar Template (Background)
+            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+            
+            // Step B: Gambar Kamera (Di atas template)
+            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+
+            /* INFO: Jika Anda ingin TEMPLATE (Bingkai) berada DI ATAS FOTO, 
+            hapus/matikan kode Step A & B di atas, lalu gunakan urutan ini:
+            
+            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight); // Foto di bawah
+            ctx.restore(); // Kembalikan efek mirror sebelum menggambar template agar tulisan tidak terbalik
+            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height); // Template bingkai di atas
+            */
+           
+            if(useFrontCamera) ctx.restore(); // Restore jika belum dilakukan di blok kode alternatif
+
+            // Simpan hasil gabungan ke variabel dan tampilkan di layar preview
+            finalImageDataUrl = canvas.toDataURL('image/png');
+            previewImage.src = finalImageDataUrl;
+
+            // Transisi UI (Sembunyikan Kamera, Tampilkan Preview)
+            boothContainer.style.display = 'none';
+            previewContainer.style.display = 'flex';
+        }
+
+        // 4. Fungsi Simpan Foto ke HP (Jika tombol Simpan diklik)
+        function savePhoto() {
+            const downloadLink = document.createElement('a');
+            downloadLink.href = finalImageDataUrl;
+            downloadLink.download = 'photobooth_' + Date.now() + '.png';
+            
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            // Kembali ke layar utama setelah menyimpan (Opsional)
+            retakePhoto();
+        }
+
+        // 5. Fungsi Batal/Ulangi (Kembali ke Kamera)
+        function retakePhoto() {
+            boothContainer.style.display = 'flex';
+            previewContainer.style.display = 'none';
+            finalImageDataUrl = ""; // Bersihkan data sebelumnya
+        }
+    </script>
+</body>
+</html>
