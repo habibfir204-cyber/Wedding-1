@@ -39,8 +39,6 @@
         }
 
         /* --- SUSUNAN LAYER (Z-INDEX) --- */
-        
-        /* Video Kamera berada di paling bawah */
         video {
             position: absolute;
             width: 100%;
@@ -49,7 +47,6 @@
             z-index: 1; 
         }
 
-        /* Template Bingkai berada di ATAS kamera agar lubang transparansinya berfungsi */
         #template-overlay {
             position: absolute;
             width: 100%;
@@ -133,7 +130,7 @@
 
     <div id="booth-container">
         <video id="webcam" autoplay playsinline></video>
-        <img id="template-overlay" src="template.png" alt="Template Frame">
+        <img id="template-overlay" src="template.jpg" alt="Template Frame">
         
         <button id="flip-btn" onclick="toggleCamera()">🔄 Balik Kamera</button>
         <button id="capture-btn" onclick="takeSnapshot()"></button>
@@ -175,22 +172,21 @@
                 const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
                 const data = imgData.data;
                 
-                // Memindai tiap pixel, jika hitam pekat maka diubah jadi transparan
                 for (let i = 0; i < data.length; i += 4) {
                     let r = data[i];
                     let g = data[i+1];
                     let b = data[i+2];
                     
-                    // Batas toleransi warna hitam (di bawah nilai 25 dianggap hitam)
-                    if (r < 25 && g < 25 && b < 25) {
-                        data[i+3] = 0; // Mengubah Alpha ke 0 (Transparan penuh)
+                    // Batas toleransi warna hitam pekat
+                    if (r < 30 && g < 30 && b < 30) {
+                        data[i+3] = 0; 
                     }
                 }
                 
                 tempCtx.putImageData(imgData, 0, 0);
                 templateImg.src = tempCanvas.toDataURL('image/png');
             } catch (e) {
-                console.log("Catatan: Fitur transparansi otomatis berjalan maksimal saat diakses lewat server/GitHub Pages.", e);
+                console.error("Gagal memproses transparansi otomatis secara lokal. Solusi: Gunakan Live Server atau upload ke GitHub Pages.", e);
             }
         };
 
@@ -214,7 +210,7 @@
                 video.srcObject = stream;
             })
             .catch(function(err) {
-                alert("Gagal mengakses kamera. Pastikan izin kamera aktif.");
+                alert("Gagal mengakses kamera. Pastikan izin kamera aktif dan menggunakan HTTPS.");
                 console.log("Error: " + err);
             });
         }
@@ -227,48 +223,51 @@
         }
 
         function takeSnapshot() {
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = 1080;
-            canvas.height = 1920;
+            try {
+                const ctx = canvas.getContext('2d');
+                canvas.width = 1080;
+                canvas.height = 1920;
 
-            let videoWidth = video.videoWidth;
-            let videoHeight = video.videoHeight;
-            let videoAspect = videoWidth / videoHeight;
-            let canvasAspect = canvas.width / canvas.height;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            
-            if (videoAspect > canvasAspect) {
-                drawHeight = canvas.height;
-                drawWidth = canvas.height * videoAspect;
-                drawX = (canvas.width - drawWidth) / 2;
-                drawY = 0;
-            } else {
-                drawWidth = canvas.width;
-                drawHeight = canvas.width / videoAspect;
-                drawX = 0;
-                drawY = (canvas.height - drawHeight) / 2;
+                let videoWidth = video.videoWidth;
+                let videoHeight = video.videoHeight;
+                let videoAspect = videoWidth / videoHeight;
+                let canvasAspect = canvas.width / canvas.height;
+                
+                let drawWidth, drawHeight, drawX, drawY;
+                
+                if (videoAspect > canvasAspect) {
+                    drawHeight = canvas.height;
+                    drawWidth = canvas.height * videoAspect;
+                    drawX = (canvas.width - drawWidth) / 2;
+                    drawY = 0;
+                } else {
+                    drawWidth = canvas.width;
+                    drawHeight = canvas.width / videoAspect;
+                    drawX = 0;
+                    drawY = (canvas.height - drawHeight) / 2;
+                }
+                
+                ctx.save();
+                if (useFrontCamera) {
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                }
+
+                ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+                ctx.restore(); 
+
+                ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+
+                finalImageDataUrl = canvas.toDataURL('image/png');
+                previewImage.src = finalImageDataUrl;
+
+                boothContainer.style.display = 'none';
+                previewContainer.style.with = 'flex';
+                previewContainer.style.display = 'flex';
+            } catch (error) {
+                alert("Gagal mengambil gambar karena pembatasan keamanan browser (CORS). Silakan upload ke GitHub Pages atau jalankan menggunakan Local Server / VS Code Live Server.");
+                console.error(error);
             }
-            
-            ctx.save();
-            if (useFrontCamera) {
-                ctx.translate(canvas.width, 0);
-                ctx.scale(-1, 1);
-            }
-
-            // 1. Gambar Kamera sebagai Background dasar
-            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
-            ctx.restore(); 
-
-            // 2. Tempel Template di atasnya (sudah bersih dari warna hitam)
-            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
-
-            finalImageDataUrl = canvas.toDataURL('image/png');
-            previewImage.src = finalImageDataUrl;
-
-            boothContainer.style.display = 'none';
-            previewContainer.style.display = 'flex';
         }
 
         function savePhoto() {
@@ -282,7 +281,7 @@
 
             setTimeout(() => {
                 if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-                    alert("Untuk pengguna iPhone: Jika foto tidak otomatis terunduh, silakan sentuh dan tahan foto pada layar lalu pilih 'Simpan Gambar'.");
+                    alert("Untuk iPhone: Jika tidak terunduh otomatis, tekan lama foto hasil lalu pilih 'Simpan Gambar'.");
                 }
             }, 500);
 
