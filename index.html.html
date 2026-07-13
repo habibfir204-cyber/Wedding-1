@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DIY Web Photo Booth</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        /* Kontainer Utama Kamera */
+        #booth-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Video Live Kamera */
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+        /* Template Bingkai di Atas Kamera */
+        #template-overlay {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none; /* Supaya layar tetap bisa ditekuk */
+            z-index: 2;
+        }
+        /* Tombol Jepret Foto */
+        #capture-btn {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75px;
+            height: 75px;
+            background-color: #ffffff;
+            border: 5px solid rgba(0,0,0,0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 3;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+        }
+        #capture-btn:active {
+            background-color: #dddddd;
+            transform: translateX(-50%) scale(0.95);
+        }
+        /* Canvas Tersembunyi Untuk Memproses Gambar */
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="booth-container">
+        <!-- Kamera Belakang Otomatis Aktif -->
+        <video id="webcam" autoplay playsinline></video>
+        
+        <!-- File Template PNG Transparan Anda -->
+        <img id="template-overlay" src="template.png" alt="Template Frame">
+        
+        <!-- Tombol Ambil Foto -->
+        <button id="capture-btn" onclick="takeSnapshot()"></button>
+    </div>
+
+    <!-- Canvas Pemroses Hasil Akhir -->
+    <canvas id="output-canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('output-canvas');
+        const templateImg = document.getElementById('template-overlay');
+
+        // 1. Mengaktifkan Kamera HP Tamu secara Otomatis
+        navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: "user", // Ubah ke "environment" jika ingin kamera belakang otomatis
+                width: { ideal: 1080 },
+                height: { ideal: 1920 }
+            }, 
+            audio: false 
+        })
+        .then(function(stream) {
+            video.srcObject = stream;
+        })
+        .catch(function(err) {
+            alert("Gagal mengakses kamera. Pastikan izin kamera di browser Anda sudah aktif.");
+            console.log("Error: " + err);
+        });
+
+        // 2. Fungsi Menggabungkan Kamera + Template & Otomatis Download
+        function takeSnapshot() {
+            const ctx = canvas.getContext('2d');
+            
+            // Set ukuran canvas final sesuai standar portrait (1080x1920)
+            canvas.width = 1080;
+            canvas.height = 1920;
+
+            // Gambar 1: Foto dari Kamera
+            // Menggunakan teknik penyesuaian aspek rasio agar gambar kamera tidak gepeng
+            let videoWidth = video.videoWidth;
+            let videoHeight = video.videoHeight;
+            let videoAspect = videoWidth / videoHeight;
+            let canvasAspect = canvas.width / canvas.height;
+            
+            let drawWidth, drawHeight, drawX, drawY;
+            
+            if (videoAspect > canvasAspect) {
+                drawHeight = canvas.height;
+                drawWidth = canvas.height * videoAspect;
+                drawX = (canvas.width - drawWidth) / 2;
+                drawY = 0;
+            } else {
+                drawWidth = canvas.width;
+                drawHeight = canvas.width / videoAspect;
+                drawX = 0;
+                drawY = (canvas.height - drawHeight) / 2;
+            }
+
+            // Gambar live kamera ke canvas
+            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+
+            // Gambar 2: Tempel Template PNG di atas foto kamera
+            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+
+            // 3. Proses Otomatis Download ke HP Tamu
+            const dataURL = canvas.toDataURL('image/png');
+            const downloadLink = document.createElement('a');
+            downloadLink.href = dataURL;
+            downloadLink.download = 'photobooth_' + Date.now() + '.png'; // Nama file acak berdasarkan waktu
+            
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+    </script>
+</body>
+</html>
