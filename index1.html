@@ -1,20 +1,3 @@
-Tentu, ini adalah pembaruan kode yang Anda butuhkan. Saya telah menambahkan fitur-fitur yang Anda minta dan merapikan tampilannya agar lebih interaktif.
-
-Berikut adalah ringkasan penambahan yang dilakukan:
-
-* **Tombol Pembalik Kamera (Flip Camera):** Menambahkan opsi untuk beralih antara kamera depan dan kamera belakang.
-* **Sistem Pratinjau (Preview) & Pilihan Simpan:** Setelah tombol jepret ditekan, hasil foto tidak akan langsung terunduh. Akan muncul layar pratinjau dengan pilihan **"Simpan Foto"** atau **"Ulangi"** (Batal).
-* **Kamera Full Screen:** Baik video maupun template sekarang menggunakan `object-fit: cover` agar memenuhi layar secara proporsional sesuai rasio 9:16 (1080x1920).
-* **Layering (Posisi Kamera di Atas Template):** Sesuai permintaan Anda, posisi video dan foto (di dalam *canvas*) sekarang berada di **atas** template transparan.
-> **Catatan:** Dalam desain *photobooth* pada umumnya, template PNG yang memiliki lubang transparan (sebagai bingkai/frame) diletakkan di **atas** kamera. Jika kamera diletakkan di atas template yang ukurannya sama-sama *full screen*, kamera akan menutupi template tersebut sepenuhnya. Jika yang Anda maksud adalah template sebagai bingkai (berada di atas foto), Anda cukup mengubah urutan pada `z-index` di CSS dan urutan `ctx.drawImage` di JavaScript. (Saya sudah menyertakan instruksi di dalam komentar kode agar Anda mudah mengubahnya jika diperlukan).
-
-
-
-### Kode HTML, CSS, dan JavaScript (Lengkap)
-
-Silakan salin dan timpa kode lama Anda dengan kode di bawah ini:
-
-```html
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -271,15 +254,7 @@ Silakan salin dan timpa kode lama Anda dengan kode di bawah ini:
             
             // Step B: Gambar Kamera (Di atas template)
             ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
-
-            /* INFO: Jika Anda ingin TEMPLATE (Bingkai) berada DI ATAS FOTO, 
-            hapus/matikan kode Step A & B di atas, lalu gunakan urutan ini:
             
-            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight); // Foto di bawah
-            ctx.restore(); // Kembalikan efek mirror sebelum menggambar template agar tulisan tidak terbalik
-            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height); // Template bingkai di atas
-            */
-           
             if(useFrontCamera) ctx.restore(); // Restore jika belum dilakukan di blok kode alternatif
 
             // Simpan hasil gabungan ke variabel dan tampilkan di layar preview
