@@ -49,13 +49,13 @@
             z-index: 1; 
         }
 
-        /* Template Bingkai PNG berada di ATAS kamera agar lubang transparansinya berfungsi */
+        /* Template Bingkai berada di ATAS kamera agar lubang transparansinya berfungsi */
         #template-overlay {
             position: absolute;
             width: 100%;
             height: 100%;
             object-fit: cover; 
-            pointer-events: none; /* Supaya ketukan layar tembus ke tombol di bawahnya jika ada */
+            pointer-events: none; 
             z-index: 2; 
         }
 
@@ -161,6 +161,39 @@
         let useFrontCamera = true; 
         let finalImageDataUrl = ""; 
 
+        // --- PROSES OTOMATIS MENGHILANGKAN BAGIAN HITAM JPG ---
+        templateImg.onload = function() {
+            if (templateImg.src.startsWith('data:')) return; 
+
+            try {
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = templateImg.naturalWidth;
+                tempCanvas.height = templateImg.naturalHeight;
+                
+                tempCtx.drawImage(templateImg, 0, 0);
+                const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const data = imgData.data;
+                
+                // Memindai tiap pixel, jika hitam pekat maka diubah jadi transparan
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i];
+                    let g = data[i+1];
+                    let b = data[i+2];
+                    
+                    // Batas toleransi warna hitam (di bawah nilai 25 dianggap hitam)
+                    if (r < 25 && g < 25 && b < 25) {
+                        data[i+3] = 0; // Mengubah Alpha ke 0 (Transparan penuh)
+                    }
+                }
+                
+                tempCtx.putImageData(imgData, 0, 0);
+                templateImg.src = tempCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.log("Catatan: Fitur transparansi otomatis berjalan maksimal saat diakses lewat server/GitHub Pages.", e);
+            }
+        };
+
         function startCamera() {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
@@ -217,26 +250,20 @@
                 drawX = 0;
                 drawY = (canvas.height - drawHeight) / 2;
             }
-
-            // --- PERBAIKAN LOGIKA CANVAS DI SINI ---
             
-            // 1. Efek Mirror HANYA untuk Kamera Depan
             ctx.save();
             if (useFrontCamera) {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
             }
 
-            // 2. Gambar Foto Kamera Dulu (Sebagai Lapisan Dasar/Background)
+            // 1. Gambar Kamera sebagai Background dasar
             ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
-            
-            // 3. LANGSUNG RESTORE di sini agar template bingkai tidak ikut terbalik
             ctx.restore(); 
 
-            // 4. Gambar Template PNG di Atas Foto Kamera
+            // 2. Tempel Template di atasnya (sudah bersih dari warna hitam)
             ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
 
-            // Tampilkan hasil akhir ke layar preview
             finalImageDataUrl = canvas.toDataURL('image/png');
             previewImage.src = finalImageDataUrl;
 
@@ -247,16 +274,15 @@
         function savePhoto() {
             const downloadLink = document.createElement('a');
             downloadLink.href = finalImageDataUrl;
-            downloadLink.download = 'photobooth_' + Date.now() + '.png';
+            downloadLink.download = 'wedding_photobooth_' + Date.now() + '.png';
             
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
 
-            // Info tambahan untuk pengguna iOS jika unduhan otomatis terblokir
             setTimeout(() => {
                 if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-                    alert("Jika foto tidak otomatis tersimpan, silakan tekan lama pada foto lalu pilih 'Simpan Gambar'.");
+                    alert("Untuk pengguna iPhone: Jika foto tidak otomatis terunduh, silakan sentuh dan tahan foto pada layar lalu pilih 'Simpan Gambar'.");
                 }
             }, 500);
 
@@ -271,3 +297,5 @@
     </script>
 </body>
 </html>
+
+```
