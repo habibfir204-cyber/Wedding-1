@@ -47,6 +47,11 @@
             z-index: 1; 
         }
 
+        /* Efek cermin untuk tampilan langsung (Live Preview) kamera depan */
+        video.mirror-view {
+            transform: scaleX(-1);
+        }
+
         #template-overlay {
             position: absolute;
             width: 100%;
@@ -177,16 +182,15 @@
                     let g = data[i+1];
                     let b = data[i+2];
                     
-                    // Batas toleransi warna hitam pekat
                     if (r < 30 && g < 30 && b < 30) {
                         data[i+3] = 0; 
                     }
                 }
                 
                 tempCtx.putImageData(imgData, 0, 0);
-                templateImg.src = tempCanvas.toDataURL('image/png');
+                templateImg.src = tempCanvas.toDataURL ? tempCanvas.toDataURL('image/png') : tempCanvas.toDataURL();
             } catch (e) {
-                console.error("Gagal memproses transparansi otomatis secara lokal. Solusi: Gunakan Live Server atau upload ke GitHub Pages.", e);
+                console.error("Gagal memproses transparansi otomatis secara lokal.", e);
             }
         };
 
@@ -195,11 +199,18 @@
                 currentStream.getTracks().forEach(track => track.stop());
             }
 
+            // Atur live preview menjadi cermin jika memakai kamera depan
+            if (useFrontCamera) {
+                video.classList.add('mirror-view');
+            } else {
+                video.classList.remove('mirror-view');
+            }
+
             const constraints = {
                 video: {
                     facingMode: useFrontCamera ? "user" : "environment",
-                    width: { ideal: 1080 },
-                    height: { ideal: 1920 }
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
                 },
                 audio: false
             };
@@ -225,47 +236,84 @@
         function takeSnapshot() {
             try {
                 const ctx = canvas.getContext('2d');
-                canvas.width = 1080;
-                canvas.height = 1920;
+                
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const screenAspect = screenWidth / screenHeight;
 
+                if (screenAspect > 1) {
+                    canvas.width = 1920;
+                    canvas.height = 1920 / screenAspect;
+                } else {
+                    canvas.height = 1920;
+                    canvas.width = 1920 * screenAspect;
+                }
+
+                const canvasAspect = canvas.width / canvas.height;
+
+                // Ambil ukuran asli video stream kamera
                 let videoWidth = video.videoWidth;
                 let videoHeight = video.videoHeight;
                 let videoAspect = videoWidth / videoHeight;
-                let canvasAspect = canvas.width / canvas.height;
                 
-                let drawWidth, drawHeight, drawX, drawY;
-                
+                let vWidth, vHeight, vX, vY;
                 if (videoAspect > canvasAspect) {
-                    drawHeight = canvas.height;
-                    drawWidth = canvas.height * videoAspect;
-                    drawX = (canvas.width - drawWidth) / 2;
-                    drawY = 0;
+                    vHeight = canvas.height;
+                    vWidth = canvas.height * videoAspect;
+                    vX = (canvas.width - vWidth) / 2;
+                    vY = 0;
                 } else {
-                    drawWidth = canvas.width;
-                    drawHeight = canvas.width / videoAspect;
-                    drawX = 0;
-                    drawY = (canvas.height - drawHeight) / 2;
+                    vWidth = canvas.width;
+                    vHeight = canvas.width / videoAspect;
+                    vX = 0;
+                    vY = (canvas.height - vHeight) / 2;
                 }
                 
-                ctx.save();
+                // --- PROSES MENGGAMBAR FOTO (MIRROR SELFIE) ---
+                ctx.save(); // Simpan settingan canvas dasar (normal)
+                
                 if (useFrontCamera) {
+                    // Balik arah horizontal HANYA pada saat menggambar tangkapan wajah
                     ctx.translate(canvas.width, 0);
                     ctx.scale(-1, 1);
                 }
-
-                ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+                
+                // Gambar wajah (sekarang posisinya mengikuti gaya mirror selfie)
+                ctx.drawImage(video, vX, vY, vWidth, vHeight);
+                
+                // KEMBALIKAN CANVAS KE POSISI NORMAL SEBELUM MENEMPEL TEMPLATE
+                // Ini memastikan teks pada bingkai tidak ikut terbalik
                 ctx.restore(); 
 
-                ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+                // --- PROSES MENEMPEL BINGKAI TEMPLATE (NORMAL) ---
+                let templateWidth = templateImg.naturalWidth;
+                let templateHeight = templateImg.naturalHeight;
+                let templateAspect = templateWidth / templateHeight;
+                
+                let tWidth, tHeight, tX, tY;
+                if (templateAspect > canvasAspect) {
+                    tHeight = canvas.height;
+                    tWidth = canvas.height * templateAspect;
+                    tX = (canvas.width - tWidth) / 2;
+                    tY = 0;
+                } else {
+                    tWidth = canvas.width;
+                    tHeight = canvas.width / templateAspect;
+                    tX = 0;
+                    tY = (canvas.height - tHeight) / 2;
+                }
+                
+                // Gambar template
+                ctx.drawImage(templateImg, tX, tY, tWidth, tHeight);
 
+                // Tampilkan ke layar pratinjau hasil
                 finalImageDataUrl = canvas.toDataURL('image/png');
                 previewImage.src = finalImageDataUrl;
 
                 boothContainer.style.display = 'none';
-                previewContainer.style.with = 'flex';
                 previewContainer.style.display = 'flex';
             } catch (error) {
-                alert("Gagal mengambil gambar karena pembatasan keamanan browser (CORS). Silakan upload ke GitHub Pages atau jalankan menggunakan Local Server / VS Code Live Server.");
+                alert("Gagal mengambil gambar. Pastikan dijalankan via GitHub Pages / Server Lokal.");
                 console.error(error);
             }
         }
